@@ -13,6 +13,7 @@ import (
 )
 
 type Block struct {
+	ID        string    `json:"id"`
 	PrevHash  string    `json:"prevHash"`
 	TimeStamp time.Time `json:"timeStamp"`
 	Nonce     int32     `json:"nonce"`
@@ -20,7 +21,7 @@ type Block struct {
 	Data      BlockData `json:"data"`
 }
 
-func NewBlock(prevHash string, data BlockData) (*Block, error) {
+func NewBlock(id []byte, prevHash string, data BlockData) (*Block, error) {
 	randBig, err := rand.Int(rand.Reader, big.NewInt(9999999999))
 	if err != nil {
 		log.Print(err)
@@ -28,6 +29,7 @@ func NewBlock(prevHash string, data BlockData) (*Block, error) {
 	}
 	nonce := int32(randBig.Int64())
 	return &Block{
+		ID: hex.EncodeToString(id),
 		PrevHash:  prevHash,
 		TimeStamp: time.Now(),
 		Nonce:     nonce,
