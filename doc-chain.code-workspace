@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "base_blockchain"
+		},
+		{
+			"path": "bootstrap"
+		},
+		{
+			"path": "doc_chain_website"
+		},
+		{
+			"path": "test"
+		}
+	],
+	"settings": {}
+}

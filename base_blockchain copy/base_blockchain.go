@@ -1,40 +1,40 @@
-package base_doc_chain
+package base_blockchain
 
 import (
 	"encoding/json"
 	"os"
 	"strconv"
 
-	"github.com/snipeart007/doc_chain/base_doc_chain/admin"
-	"github.com/snipeart007/doc_chain/base_doc_chain/chain"
+	"github.com/snipeart007/doc-chain/base_blockchain/admin"
+	"github.com/snipeart007/doc-chain/base_blockchain/chain"
 )
 
-// base_doc_chain.BaseDocChain is the head of the chain.
+// base_blockchain.Blockchain is the head of the chain.
 // All operations on the chain are supposed to be performed on this object.
 // Contains the database, the blockchain, the config data and the admin objects.
-type BaseDocChain struct {
-	// base_doc_chain.BaseDocChain.db points to the database of the BaseDocChain object.
+type Blockchain struct {
+	// base_blockchain.Blockchain.db points to the database of the Blockchain object.
 	// It can not be altered directly.
 	db *chain.DB
 
-	// base_doc_chain.BaseDocChain.chain points to the blockchain of the BaseDocChain object.
+	// base_blockchain.Blockchain.chain points to the blockchain of the Blockchain object.
 	// It can not be altered directly.
 	chain *chain.Chain
 
-	// base_doc_chain.BaseDocChain.Config points to the config data of the BaseDocChain object.
+	// base_blockchain.Blockchain.Config points to the config data of the Blockchain object.
 	// It can be altered directly but should only be altered only through other functions
 	// as the same changes need to be done in the database.
 	Config *Config
 	Admin  *admin.Admin
 
-	// base_doc_chain.BaseDocChain contains the path to the dump directory.
+	// base_blockchain.Blockchain contains the path to the dump directory.
 	// Using the absolute path of the dump directory is recommended.
 	Directory string
 }
 
-// base_doc_chain.Create creates a BaseDocChain instance with the specified dump directory.
+// base_blockchain.CreateBlockchain creates a Blockchain instance with the specified dump directory.
 // complexity should only be a uint8
-func Create(directory string, complexity uint8) (*BaseDocChain, error) {
+func CreateBlockchain(directory string, complexity uint8) (*Blockchain, error) {
 	if lastChar := directory[len(directory)-1:]; lastChar != "/" && lastChar != "\\" {
 		directory = directory + "/"
 	}
@@ -72,16 +72,20 @@ func Create(directory string, complexity uint8) (*BaseDocChain, error) {
 
 	chain := chain.NewChain(db, complexity)
 
-	return &BaseDocChain{
-		db:     db,
-		chain:  chain,
-		Config: config,
-		Admin:  newAdmin,
+	return &Blockchain{
+		db:        db,
+		chain:     chain,
+		Config:    config,
+		Admin:     newAdmin,
+		Directory: directory,
 	}, nil
 }
 
-// base_doc_chain.FromDump reads and returns a BaseDocChain instance from the specified dump directory.
-func FromDump(directory string) (*BaseDocChain, error) {
+// base_blockchain.FromDump reads and returns a Blockchain instance from the specified dump directory.
+func FromDump(directory string) (*Blockchain, error) {
+	if lastChar := directory[len(directory)-1:]; lastChar != "/" && lastChar != "\\" {
+		directory = directory + "/"
+	}
 	db, err := chain.NewDB(directory)
 	if err != nil {
 		return nil, err
@@ -112,10 +116,11 @@ func FromDump(directory string) (*BaseDocChain, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &BaseDocChain{
-		db:     db,
-		chain:  chain,
-		Config: config,
-		Admin:  admin,
+	return &Blockchain{
+		db:        db,
+		chain:     chain,
+		Config:    config,
+		Admin:     admin,
+		Directory: directory,
 	}, nil
 }

@@ -1,4 +1,4 @@
-module github.com/snipeart007/doc_chain/base_doc_chain
+module github.com/snipeart007/doc-chain/base_blockchain
 
 go 1.13
 

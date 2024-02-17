@@ -1,4 +1,4 @@
-package base_doc_chain
+package base_blockchain
 
 type Config struct {
 	Complexity string `json:"complexity"`

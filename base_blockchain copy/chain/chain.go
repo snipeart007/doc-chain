@@ -5,29 +5,39 @@ import (
 	"compress/gzip"
 	"crypto"
 	"crypto/rsa"
-	"encoding/hex"
+	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"os"
+	"strconv"
 	"time"
 )
 
 type Chain struct {
-	chain      []Block
-	complexity uint8
-	db         *DB
+	chain           []Block
+	complexity      uint8
+	documentMemPool *DocumentMemPool
+	db              *DB
 }
 
 func NewChain(db *DB, complexity uint8) *Chain {
-	return &Chain{
+	newChain := &Chain{
 		chain: []Block{
 			{
-				TimeStamp: time.Now(),
-				IsMined:   true,
-			}},
-		complexity: uint8(complexity),
+				ID:        "Genesis Block",
+				TimeStamp: time.Now().Unix(),
+			},
+		},
+		complexity: complexity,
 		db:         db,
 	}
+
+	newChain.documentMemPool = NewDocumentMemPool(100, newChain)
+
+	// go CycleDocumentMemPool(newChain.documentMemPool)
+
+	return newChain
 }
 
 func ReadChain(directory string, db *DB, complexity uint8) (*Chain, error) {
@@ -53,11 +63,17 @@ func ReadChain(directory string, db *DB, complexity uint8) (*Chain, error) {
 		return nil, err
 	}
 
-	return &Chain{
+	newChain := &Chain{
 		chain:      chain,
-		db:         db,
 		complexity: complexity,
-	}, nil
+		db:         db,
+	}
+
+	newChain.documentMemPool = NewDocumentMemPool(100, newChain)
+
+	// go CycleDocumentMemPool(newChain.documentMemPool)
+
+	return newChain, nil
 }
 
 func (chain *Chain) LastBlock() Block {
@@ -69,36 +85,70 @@ func (chain *Chain) LastBlockHash() (string, error) {
 	return lastBlock.Hash()
 }
 
-func (chain *Chain) AddBlock(document *Document, publicKey *rsa.PublicKey, signature []byte) error {
+func (chain *Chain) addBlockToChain(block Block) {
+	success := make(chan bool, 1)
+	if !block.IsMined() {
+		go func() {
+			for {
+				go chain.blockchain.MiningService.MineBlock(block, chain.complexity, success)
+				if <-success == true {
+					if block.IsMined() {
+						break
+					}
+					continue
+				}
+			}
+			chain.chain = append(chain.chain, block)
+		}()
+	} else {
+		chain.chain = append(chain.chain, block)
+	}
+}
+
+func (chain *Chain) AddDocumentToMemPool(document *Document, publicKey *rsa.PublicKey, signature []byte) error {
 	hash, err := document.Hash()
 	if err != nil {
 		return err
 	}
-	
+
 	err = rsa.VerifyPKCS1v15(publicKey, crypto.SHA256, hash, signature)
 	if err != nil {
 		return err
 	}
 
-	lastBlockHash, err := chain.LastBlockHash()
+	chain.documentMemPool.Add(*document)
+	return nil
+}
+
+func (chain *Chain) AddDocuments(documents []Document) error {
+	jsonDocuments, err := json.Marshal(documents)
 	if err != nil {
 		return err
 	}
 
-	newBlock, err := NewBlock(document.ID, lastBlockHash, document.Data)
+	prevBlockHash, err := chain.LastBlockHash()
 	if err != nil {
 		return err
 	}
 
-	if !newBlock.IsMined {
-		newBlock.Mine(chain.complexity)
-	}
+	hash := sha256.Sum256(jsonDocuments)
+	id := hash[:]
 
-	chain.chain = append(chain.chain, *newBlock)
-
-	err = chain.db.InsertDocument(hex.EncodeToString(signature), document)
+	block, err := chain.NewBlock(id, prevBlockHash, documents)
 	if err != nil {
 		return err
+	}
+
+	block.GenerateMerkelRoot()
+
+	chain.addBlockToChain(*block)
+	chain.db.InsertBlock(block.ID, block)
+	for i, v := range block.Documents {
+		v.Block = block.ID
+		err = chain.db.InsertDocument(v.ID, &v)
+		if err != nil {
+			return errors.New(string(v.ID) + ": " + err.Error() + "." + block.ID + "[" + strconv.Itoa(i) + "]")
+		}
 	}
 	return nil
 }
@@ -137,6 +187,5 @@ func (chain *Chain) Dump(directory string) error {
 		return err
 	}
 
-	err = os.WriteFile(directory+"chain/chain.gz", dump, 0644)
-	return err
+	return os.WriteFile(directory+"chain/chain.gz", dump, 0644)
 }
